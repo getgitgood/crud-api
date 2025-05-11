@@ -1,0 +1,28 @@
+{
+  "name": "crud-api",
+  "version": "1.0.0",
+  "description": "simple CRUD API using in-memory database underneath.",
+  "main": "dist/index.js",
+  "devDependencies": {
+    "@types/node": "^22.15.17",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.5.0",
+    "dotenv-webpack": "^8.1.0",
+    "eslint": "^9.26.0",
+    "nodemon": "^3.1.10",
+    "ts-loader": "^9.5.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3",
+    "uuid": "^11.1.0",
+    "webpack": "^5.99.8",
+    "webpack-cli": "^6.0.1",
+    "webpack-node-externals": "^3.0.0"
+  },
+  "scripts": {
+    "dev": "webpack --mode production --watch",
+    "build": "webpack --mode production",
+    "start": "cross-env NODE_ENV=development nodemon --delay 1500ms"
+  },
+  "author": "",
+  "license": "ISC"
+}
