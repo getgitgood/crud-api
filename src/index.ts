@@ -34,7 +34,10 @@ const internalErrorRes = (res: ResponseType, msg = "Error occurred") => {
   res.writeHead(500, "Internal server error").write(msg);
 };
 
-const requiredFields = ["username", "age", "hobbies"];
+const requiredFields: Array<keyof UserEntity> = ["username", "age", "hobbies"];
+
+const isKeyIsValidField = (key: unknown): key is keyof UserEntity =>
+  requiredFields.includes(key as keyof UserEntity);
 
 type UserEntity = {
   id: string | UUID;
@@ -45,10 +48,17 @@ type UserEntity = {
 
 const users: UserEntity[] = [];
 
-const parseRequestBody = async (
-  req: http.IncomingMessage
-): Promise<UserEntity | null> => {
-  return new Promise((res, rej) => {
+const checkUserUuid = (id: string) => {
+  if (validate(id)) return;
+
+  throw new CustomError({
+    message: "User ID is not valid UUID.",
+    code: 400,
+  });
+};
+
+const parseRequestBody = async (req: http.IncomingMessage) => {
+  const body: UserEntity | null = await new Promise((res, rej) => {
     let body = "";
 
     req
@@ -59,12 +69,39 @@ const parseRequestBody = async (
         try {
           res(JSON.parse(body));
         } catch (e) {
-          console.warn(e);
-          rej("Error on body parse");
+          let message = "";
+          if (e instanceof Error) message = e.message;
+
+          rej(
+            new CustomError({
+              message: `Error while parsing request body. ${message}`,
+              code: 400,
+            })
+          );
         }
-      })
-      .on("error", () => rej());
+      });
   });
+
+  if (!body)
+    throw new CustomError({
+      message: `Error while parsing request body.`,
+      code: 400,
+    });
+
+  return body;
+};
+
+const checkIfUserExists = (userId: string | UUID) => {
+  const user = users.find(({ id }) => id === userId);
+
+  if (!user) {
+    throw new CustomError({
+      message: `User with ${userId} UUID not found.`,
+      code: 404,
+    });
+  }
+
+  return user;
 };
 
 server.on("request", async (req, res) => {
@@ -77,16 +114,9 @@ server.on("request", async (req, res) => {
         code: 404,
       });
 
-    const [api, path, rest] = url.split("/").filter(Boolean);
-
-    if (!api)
-      throw new CustomError({
-        message: "No api endpoint specified.",
-        code: 404,
-      });
+    const [_, path, userId] = url.split("/").filter(Boolean);
 
     const { method } = req;
-    console.log(api, path, rest, method);
 
     switch (method) {
       case "GET": {
@@ -96,40 +126,23 @@ server.on("request", async (req, res) => {
             code: 404,
           });
 
-        if (!rest) {
+        if (!userId) {
           successRes(res, JSON.stringify(users));
 
           return;
         }
 
-        if (!validate(rest)) {
-          throw new CustomError({
-            message: "User ID is not valid UUID.",
-            code: 400,
-          });
-        }
+        checkUserUuid(userId);
 
-        const user = users.find(({ id }) => rest === id);
-
-        if (!user) {
-          throw new CustomError({
-            message: `User with ${rest} UUID not found.`,
-            code: 404,
-          });
-        }
+        const user = checkIfUserExists(userId);
 
         successRes(res, JSON.stringify(user));
 
         break;
       }
+
       case "POST": {
         const body = await parseRequestBody(req);
-
-        if (!body)
-          throw new CustomError({
-            message: "Error while parsing request body",
-            code: 400,
-          });
 
         const missedFields: string[] = [];
 
@@ -150,10 +163,57 @@ server.on("request", async (req, res) => {
         users.push(user);
 
         successRes(res, JSON.stringify(user), 201);
+
+        break;
       }
+      case "PUT": {
+        if (!userId)
+          throw new CustomError({ code: 400, message: "No uuid specified" });
+        const body = await parseRequestBody(req);
+
+        checkUserUuid(userId);
+
+        const user = checkIfUserExists(userId);
+
+        Object.entries(body).forEach(([key, value]) => {
+          if (key === "id") return;
+
+          if (isKeyIsValidField(key)) user[key] = value as never;
+        });
+
+        const spliceIndex = users.findIndex(({ id }) => id === user.id);
+
+        users.splice(spliceIndex, 1, user);
+
+        successRes(res, JSON.stringify(user));
+      }
+
+      case "DELETE": {
+        if (!userId)
+          throw new CustomError({ code: 400, message: "No uuid specified" });
+
+        checkUserUuid(userId);
+
+        const user = checkIfUserExists(userId);
+
+        const spliceIndex = users.findIndex(({ id }) => id === user.id);
+
+        users.splice(spliceIndex);
+
+        successRes(res, JSON.stringify(user), 204);
+
+        break;
+      }
+      default:
+        break;
     }
-    // successRes(res, "YEAH");
   } catch (e) {
+    if (res.headersSent) {
+      console.warn(e);
+
+      return;
+    }
+
     if (e instanceof CustomError) {
       res.writeHead(e.code || 500, e.message).write(e.message);
     } else {
