@@ -3,14 +3,20 @@ import { server } from "../index";
 import http from "node:http";
 
 const baseEndpoint = "http://localhost:4000/api/users";
+const port = 4000;
 const commonReqConfig = {
   hostname: "localhost",
-  port: 4000,
+  port,
   path: "/api/users",
 };
 
 describe("Api testing", () => {
   let createdUserId: string;
+
+  beforeAll(() => {
+    server.close();
+    server.listen(port);
+  });
 
   afterAll(() => {
     server.close();
