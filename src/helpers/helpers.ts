@@ -77,5 +77,7 @@ export const sendResponse = (
   code = 200,
   header = "Success"
 ) => {
-  res.writeHead(code, header).write(msg);
+  res
+    .writeHead(code, header, { "Content-Type": "application/json" })
+    .write(msg);
 };

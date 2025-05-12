@@ -1,4 +1,3 @@
-import dotenv from "dotenv";
 import http from "node:http";
 import {
   checkIfUserExists,
@@ -11,13 +10,12 @@ import {
 } from "./helpers";
 import { v4 } from "uuid";
 
-const { parsed: envs } = dotenv.config();
-const PORT = envs?.["PORT"];
+const PORT = process.env?.["PORT"];
 
 const server = http.createServer();
 
 server.listen(PORT, () => {
-  console.log(`Server running on ${PORT} port.`);
+  PORT && console.log(`Server is running on port ${PORT}.`);
 });
 
 const users: UserEntity[] = [];
@@ -148,3 +146,5 @@ server.on("request", async (req, res) => {
     res.end();
   }
 });
+
+export { server };
